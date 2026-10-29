@@ -1,4 +1,4 @@
-<h1 align="center">Sentimento em avaliações de e-commerce (PT-BR)</h1>
+<h1 align="center">Classificação de avaliações de clientes (análise de sentimento)</h1>
 
 <p align="center">
   Modelo clássico, <b>fine-tuning</b> (BERTimbau e Qwen2.5 + LoRA) e <b>LLM zero-shot</b> comparados
