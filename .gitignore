@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+.venv/
+
+# Dados: o CSV original é da Olist (CC BY-NC-SA 4.0) e as partições são
+# regeneradas por `python -m avaliacoes.dados`.
+data/
+
+# Pesos treinados vão para o Hugging Face, não para o git.
+models/
+
+# Chaves de API (GEMINI_API_KEY, ANTHROPIC_API_KEY)
+.env

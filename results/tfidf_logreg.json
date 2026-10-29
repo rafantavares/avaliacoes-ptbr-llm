@@ -1,0 +1,39 @@
+{
+  "modelo": "tfidf_logreg",
+  "n_teste": 5259,
+  "f1_macro": 0.6617,
+  "acuracia": 0.8138,
+  "f1_por_classe": {
+    "negativo": 0.8066,
+    "neutro": 0.2714,
+    "positivo": 0.9071
+  },
+  "matriz_confusao": {
+    "classes": [
+      "negativo",
+      "neutro",
+      "positivo"
+    ],
+    "valores": [
+      [
+        1287,
+        186,
+        68
+      ],
+      [
+        209,
+        141,
+        130
+      ],
+      [
+        154,
+        232,
+        2852
+      ]
+    ]
+  },
+  "segundos_treino": 14.4,
+  "ms_por_amostra": 0.169,
+  "hardware": "CPU",
+  "custo_usd_por_1k": 0.0
+}

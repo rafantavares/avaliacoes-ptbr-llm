@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "avaliacoes-ptbr-llm"
+version = "0.1.0"
+description = "Classificação de sentimento de avaliações de e-commerce em PT-BR: baseline clássico x fine-tuning (BERTimbau, Qwen + LoRA) x LLM zero-shot."
+requires-python = ">=3.10"
+dependencies = [
+    "pandas>=2.0",
+    "scikit-learn>=1.3",
+    "joblib>=1.3",
+]
+
+[project.optional-dependencies]
+# Fine-tuning (roda no Kaggle, que já traz torch com CUDA).
+treino = ["transformers>=5.0", "datasets>=2.20", "peft>=0.12", "accelerate>=0.33"]
+llm = ["google-genai>=1.0", "anthropic>=0.70"]
+dev = ["pytest>=8"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
