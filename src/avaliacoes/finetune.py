@@ -84,6 +84,10 @@ def _carregar_modelo(cfg: Config, tokenizer):
         # Se o modelo base já tiver uma cabeça de classificação com outro número
         # de classes, ela é recriada em vez de dar erro.
         ignore_mismatched_sizes=True,
+        # Pesos em float32 e fp16 só no cálculo (mixed precision). Sem isso a
+        # transformers v5 carrega o Qwen em bfloat16 (o formato publicado), que
+        # o escalonador de gradiente do fp16 não suporta — nem a GPU T4.
+        dtype=torch.float32,
     )
     if tokenizer.pad_token is None:  # LLMs decoder-only não têm token de padding
         tokenizer.pad_token = tokenizer.eos_token
