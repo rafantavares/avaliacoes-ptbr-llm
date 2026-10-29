@@ -1,0 +1,41 @@
+{
+  "modelo": "bertimbau_base",
+  "n_teste": 5259,
+  "f1_macro": 0.7159,
+  "acuracia": 0.8405,
+  "f1_por_classe": {
+    "negativo": 0.8458,
+    "neutro": 0.3777,
+    "positivo": 0.9242
+  },
+  "matriz_confusao": {
+    "classes": [
+      "negativo",
+      "neutro",
+      "positivo"
+    ],
+    "valores": [
+      [
+        1316,
+        195,
+        30
+      ],
+      [
+        171,
+        220,
+        89
+      ],
+      [
+        84,
+        270,
+        2884
+      ]
+    ]
+  },
+  "modelo_base": "neuralmind/bert-base-portuguese-cased",
+  "lora": false,
+  "parametros_treinaveis": 108925443,
+  "segundos_treino": 394.5,
+  "ms_por_amostra": 2.923,
+  "hardware": "Tesla T4"
+}

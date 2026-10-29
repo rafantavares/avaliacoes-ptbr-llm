@@ -1,0 +1,41 @@
+{
+  "modelo": "qwen2.5_0.5b_lora",
+  "n_teste": 5259,
+  "f1_macro": 0.7056,
+  "acuracia": 0.8152,
+  "f1_por_classe": {
+    "negativo": 0.8216,
+    "neutro": 0.3836,
+    "positivo": 0.9117
+  },
+  "matriz_confusao": {
+    "classes": [
+      "negativo",
+      "neutro",
+      "positivo"
+    ],
+    "valores": [
+      [
+        1227,
+        288,
+        26
+      ],
+      [
+        144,
+        271,
+        65
+      ],
+      [
+        75,
+        374,
+        2789
+      ]
+    ]
+  },
+  "modelo_base": "Qwen/Qwen2.5-0.5B-Instruct",
+  "lora": true,
+  "parametros_treinaveis": 2165376,
+  "segundos_treino": 1483.3,
+  "ms_por_amostra": 11.539,
+  "hardware": "Tesla T4"
+}
