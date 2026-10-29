@@ -15,9 +15,11 @@ As chaves podem ficar num arquivo `.env` na raiz do projeto (não versionado).
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import statistics
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -90,22 +92,35 @@ class Gemini:
         self.cliente = genai.Client(
             api_key=os.environ["GEMINI_API_KEY"],
             http_options=types.HttpOptions(
-                timeout=60_000, retry_options=types.HttpRetryOptions(attempts=1)
+                timeout=30_000, retry_options=types.HttpRetryOptions(attempts=1)
             ),
         )
 
     def classificar(self, texto: str) -> dict:
+        import httpx
         from google.genai import errors
 
+        ultimo_erro = None
         for modelo in self.modelos:
             for tentativa in range(TENTATIVAS_POR_MODELO):
                 try:
                     return self._chamar(modelo, texto)
                 except errors.APIError as erro:
+                    ultimo_erro = erro
                     if erro.code not in self.CODIGOS_TRANSITORIOS:
-                        raise
-                    time.sleep(min(60, 5 * 2 ** tentativa))  # 5, 10, 20, 40 s
-        raise ProvedorIndisponivel(f"nenhum modelo respondeu: {self.modelos}")
+                        break  # erro deste modelo (ex.: 400): tentar de novo não adianta
+                except httpx.TransportError as erro:  # timeout ou queda de conexão
+                    ultimo_erro = erro
+                time.sleep(min(60, 5 * 2 ** tentativa))  # 5, 10, 20, 40 s
+        raise ProvedorIndisponivel(f"nenhum modelo respondeu ({self.modelos}): {ultimo_erro}")
+
+    def _config_raciocinio(self, modelo: str):
+        """Classificação simples não ganha com raciocínio longo. A família 2.5
+        desliga o raciocínio por orçamento; a 3.x usa níveis e rejeita o
+        orçamento com 400."""
+        if "2.5" in modelo:
+            return self.types.ThinkingConfig(thinking_budget=0)
+        return self.types.ThinkingConfig(thinking_level="minimal")
 
     def _chamar(self, modelo: str, texto: str) -> dict:
         inicio = time.perf_counter()
@@ -116,8 +131,7 @@ class Gemini:
                 system_instruction=INSTRUCOES,
                 response_mime_type="application/json",
                 response_json_schema=ESQUEMA_JSON,
-                # Classificação simples não ganha com raciocínio longo.
-                thinking_config=self.types.ThinkingConfig(thinking_budget=0),
+                thinking_config=self._config_raciocinio(modelo),
             ),
         )
         uso = resposta.usage_metadata
@@ -174,7 +188,7 @@ class Claude:
 # ------------------------------------------------------------------ avaliação
 
 PROVEDORES = {
-    "gemini": (Gemini, ["gemini-flash-latest", "gemini-2.5-flash", "gemini-flash-lite-latest"]),
+    "gemini": (Gemini, ["gemini-2.5-flash", "gemini-flash-lite-latest"]),
     "claude": (Claude, ["claude-opus-5-5"]),
 }
 
@@ -186,46 +200,104 @@ def amostra_estratificada(teste: pd.DataFrame, n: int) -> pd.DataFrame:
     return pd.concat(partes).reset_index(drop=True)
 
 
+class Ritmo:
+    """Espaça o início das requisições para respeitar um limite por minuto
+    (o nível gratuito tem limite baixo; bater no 429 e esperar sai mais caro)."""
+
+    def __init__(self, por_minuto: float):
+        self.intervalo = 60.0 / por_minuto if por_minuto > 0 else 0.0
+        self.proxima = 0.0
+        self.trava = threading.Lock()
+
+    def aguardar(self) -> None:
+        with self.trava:
+            agora = time.monotonic()
+            espera = max(0.0, self.proxima - agora)
+            self.proxima = max(agora, self.proxima) + self.intervalo
+        time.sleep(espera)
+
+
+def _chave(texto: str) -> str:
+    return hashlib.sha256(texto.encode("utf-8")).hexdigest()[:16]
+
+
 def avaliar_llm(provedor: str = "gemini", modelos: list[str] | None = None, n: int = 500,
-                paralelo: int = 2, pasta_dados: str | Path = "data/processed") -> dict:
+                paralelo: int = 2, por_minuto: float = 0, pasta_dados: str | Path = "data/processed",
+                pasta_resultados: str | Path = "results") -> dict:
     classe, modelos_padrao = PROVEDORES[provedor]
     modelos = modelos or modelos_padrao
     cliente = classe(modelos)
+    nome = f"zero_shot_{modelos[0]}"
 
     teste = pd.read_csv(Path(pasta_dados) / "teste.csv")
     amostra = amostra_estratificada(teste, n)
-    with ThreadPoolExecutor(max_workers=paralelo) as executor:
-        saidas = list(executor.map(cliente.classificar, amostra["texto"]))
 
-    invalidas = sum(s["rotulo"] is None for s in saidas)
-    # Recusa ou resposta fora do esquema conta como erro: o produto ficaria sem resposta.
+    # Cada resposta é gravada assim que chega: se a execução cair no meio,
+    # rodar de novo continua de onde parou em vez de pagar tudo outra vez.
+    cache = Path(pasta_resultados) / f"_cache_{nome}.jsonl"
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    feitas = {}
+    if cache.exists():
+        for linha in cache.read_text(encoding="utf-8").splitlines():
+            registro = json.loads(linha)
+            feitas[registro["chave"]] = registro
+    trava_cache = threading.Lock()
+    ritmo = Ritmo(por_minuto)
+
+    def processar(texto: str) -> dict:
+        chave = _chave(texto)
+        if chave in feitas:
+            return feitas[chave]
+        ritmo.aguardar()
+        try:
+            saida = cliente.classificar(texto)
+        except Exception as erro:  # uma avaliação problemática não derruba as outras
+            saida = {"rotulo": None, "modelo": None, "erro": f"{type(erro).__name__}: {erro}"[:300]}
+        saida["chave"] = chave
+        if saida["rotulo"] is not None or "erro" not in saida:
+            with trava_cache, cache.open("a", encoding="utf-8") as f:
+                f.write(json.dumps(saida, ensure_ascii=False) + "\n")
+        return saida
+
+    with ThreadPoolExecutor(max_workers=paralelo) as executor:
+        saidas = list(executor.map(processar, amostra["texto"]))
+
+    respondidas = [s for s in saidas if "erro" not in s]
+    erros = [s["erro"] for s in saidas if "erro" in s]
+    if not respondidas:
+        raise ProvedorIndisponivel(f"nenhuma avaliação respondida; primeiro erro: {erros[0]}")
+
+    # Recusa, resposta fora do esquema ou erro contam como erro de classificação:
+    # o produto ficaria sem resposta para aquela avaliação.
     previstos = [s["rotulo"] or "invalida" for s in saidas]
-    latencias = sorted(s["latencia_s"] for s in saidas)
-    tokens_entrada = sum(s["tokens_entrada"] for s in saidas)
-    tokens_saida = sum(s["tokens_saida"] for s in saidas)
+    latencias = sorted(s["latencia_s"] for s in respondidas)
+    tokens_entrada = sum(s["tokens_entrada"] for s in respondidas)
+    tokens_saida = sum(s["tokens_saida"] for s in respondidas)
 
     extras = {
         "provedor": provedor,
-        "modelos_que_responderam": pd.Series([s["modelo"] for s in saidas]).value_counts().to_dict(),
-        "respostas_invalidas": invalidas,
+        "modelos_que_responderam": pd.Series([s["modelo"] for s in respondidas]).value_counts().to_dict(),
+        "erros_de_chamada": len(erros),
+        "exemplo_erro": erros[0] if erros else None,
+        "respostas_invalidas": sum(s["rotulo"] is None for s in respondidas),
         "latencia_mediana_s": round(statistics.median(latencias), 3),
         "latencia_p95_s": round(latencias[int(0.95 * (len(latencias) - 1))], 3),
         "tokens_por_1k": {
-            "entrada": round(tokens_entrada / len(saidas) * 1000),
-            "saida": round(tokens_saida / len(saidas) * 1000),
+            "entrada": round(tokens_entrada / len(respondidas) * 1000),
+            "saida": round(tokens_saida / len(respondidas) * 1000),
         },
         "hardware": "API",
     }
     if provedor == "claude" and modelos[0] in PRECOS_CLAUDE_USD_POR_MTOK:
         preco_entrada, preco_saida = PRECOS_CLAUDE_USD_POR_MTOK[modelos[0]]
         custo = (tokens_entrada * preco_entrada + tokens_saida * preco_saida) / 1e6
-        extras["custo_usd_por_1k"] = round(custo / len(saidas) * 1000, 4)
+        extras["custo_usd_por_1k"] = round(custo / len(respondidas) * 1000, 4)
     elif provedor == "gemini":
         extras["custo_usd_por_1k"] = 0.0
         extras["observacao_custo"] = "nível gratuito do Google AI Studio"
 
-    resultado = avaliar(amostra["rotulo"], previstos, nome=f"zero_shot_{modelos[0]}", extras=extras)
-    salvar(resultado)
+    resultado = avaliar(amostra["rotulo"], previstos, nome=nome, extras=extras)
+    salvar(resultado, pasta_resultados)
     return resultado
 
 
@@ -237,8 +309,10 @@ if __name__ == "__main__":
     parser.add_argument("--modelo", action="append", help="pode repetir; o primeiro é o principal")
     parser.add_argument("-n", type=int, default=500, help="tamanho da amostra do teste")
     parser.add_argument("--paralelo", type=int, default=2)
+    parser.add_argument("--por-minuto", type=float, default=0,
+                        help="limite de requisições por minuto (0 = sem limite)")
     args = parser.parse_args()
 
     carregar_env()
-    print(json.dumps(avaliar_llm(args.provedor, args.modelo, args.n, args.paralelo),
+    print(json.dumps(avaliar_llm(args.provedor, args.modelo, args.n, args.paralelo, args.por_minuto),
                      ensure_ascii=False, indent=2))

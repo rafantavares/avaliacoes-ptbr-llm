@@ -13,3 +13,7 @@ models/
 
 # Chaves de API (GEMINI_API_KEY, ANTHROPIC_API_KEY)
 .env
+
+# Saídas locais da avaliação via API
+results/_cache_*.jsonl
+results/_execucao_*.log
