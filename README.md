@@ -51,6 +51,7 @@ classes são desbalanceadas (62% positivas, 9% neutras) e a acurácia esconderia
   BERTimbau classifica 171 como negativas (quem dá 3 estrelas costuma reclamar de algo); e 270 positivas
   viram neutras. O rótulo vem da nota, não do texto, então parte desse erro é ruído do próprio rótulo.
 
+**Execução no Kaggle:** [notebook com os logs de treino](https://www.kaggle.com/code/rafaelnunestavares/notebook376b525d99) ·
 **Modelos publicados no Hugging Face:**
 [rafantavares/bertimbau-sentimento-avaliacoes-ptbr](https://huggingface.co/rafantavares/bertimbau-sentimento-avaliacoes-ptbr) ·
 [rafantavares/qwen2.5-0.5b-lora-sentimento-avaliacoes-ptbr](https://huggingface.co/rafantavares/qwen2.5-0.5b-lora-sentimento-avaliacoes-ptbr)
@@ -94,7 +95,8 @@ echo GEMINI_API_KEY=... > .env    # chave gratuita do Google AI Studio
 python -m avaliacoes.llm_zero_shot -n 500
 ```
 
-O fine-tuning roda no [notebook do Kaggle](notebooks/finetune_kaggle.ipynb) (GPU gratuita).
+O fine-tuning roda no [notebook do Kaggle](notebooks/finetune_kaggle.ipynb) (GPU gratuita) — a execução
+que gerou os resultados acima está pública no Kaggle: [Análise de sentimento PT-BR: BERTimbau vs Qwen2.5 LoRA](https://www.kaggle.com/code/rafaelnunestavares/notebook376b525d99).
 
 ## Limitações
 
