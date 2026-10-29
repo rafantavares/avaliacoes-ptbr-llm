@@ -28,16 +28,32 @@ com comentário. A nota vira o rótulo: 1–2 estrelas = **negativo**, 3 = **neu
 Conjunto de teste: **5.259 avaliações** (15%, estratificado). Métrica principal: **F1-macro**, porque as
 classes são desbalanceadas (62% positivas, 9% neutras) e a acurácia esconderia um modelo que ignora o neutro.
 
-| Abordagem | F1-macro | Acurácia | F1 neutro | Latência / avaliação | Onde roda |
-|---|---|---|---|---|---|
-| TF-IDF + regressão logística | 0,662 | 81,4% | 0,271 | 0,16 ms | CPU |
-| BERTimbau base (ajuste completo) | *em treino* | | | | GPU (Kaggle) |
-| Qwen2.5-0.5B + LoRA | *em treino* | | | | GPU (Kaggle) |
-| Gemini Flash zero-shot | *em execução* | | | | API |
+| Abordagem | F1-macro | Acurácia | F1 neutro | Parâmetros treinados | Treino | Inferência\* |
+|---|---|---|---|---|---|---|
+| TF-IDF + regressão logística | 0,662 | 81,4% | 0,271 | — | 16 s (CPU) | 0,16 ms (CPU) |
+| **BERTimbau base** (ajuste completo) | **0,716** | **84,1%** | 0,378 | 109 mi (100%) | 6,6 min (T4) | 2,9 ms (T4) |
+| Qwen2.5-0.5B-Instruct + LoRA | 0,706 | 81,5% | **0,384** | 2,2 mi (0,4%) | 24,7 min (T4) | 11,5 ms (T4) |
+| Gemini zero-shot | *pendente: cota diária do nível gratuito* | | | — | — | API |
 
-O baseline já mostra onde está o desafio: acerta bem positivo (F1 0,91) e negativo (0,81), mas quase
-não reconhece o **neutro** — quem dá 3 estrelas costuma escrever algo ambíguo. É nessa classe que os
-modelos maiores precisam provar que valem o custo.
+\* Tempo médio por avaliação, processando o conjunto de teste em lote.
+
+![Matrizes de confusão](results/matrizes_confusao.png)
+
+**O que os números dizem:**
+
+- **Fine-tuning compensa:** os dois modelos ajustados ganham ~5 pontos de F1-macro sobre o baseline e
+  levam o F1 do **neutro** de 0,27 para ~0,38 — é ali que o modelo clássico falhava.
+- **BERTimbau vence no geral e é 4× mais rápido que o Qwen.** Um encoder de 110 milhões de parâmetros,
+  pré-treinado em português, ainda é a melhor escolha para classificação em português.
+- **O Qwen com LoRA chega perto treinando só 0,4% dos parâmetros** e é o melhor no neutro. O adaptador
+  publicado tem ~9 MB, contra ~440 MB do BERTimbau inteiro.
+- **O neutro continua difícil para todos (F1 < 0,4), nos dois sentidos:** das 480 avaliações neutras, o
+  BERTimbau classifica 171 como negativas (quem dá 3 estrelas costuma reclamar de algo); e 270 positivas
+  viram neutras. O rótulo vem da nota, não do texto, então parte desse erro é ruído do próprio rótulo.
+
+**Modelos publicados no Hugging Face:**
+[rafantavares/bertimbau-sentimento-avaliacoes-ptbr](https://huggingface.co/rafantavares/bertimbau-sentimento-avaliacoes-ptbr) ·
+[rafantavares/qwen2.5-0.5b-lora-sentimento-avaliacoes-ptbr](https://huggingface.co/rafantavares/qwen2.5-0.5b-lora-sentimento-avaliacoes-ptbr)
 
 ## Decisões de engenharia
 
