@@ -188,7 +188,10 @@ class Claude:
 # ------------------------------------------------------------------ avaliação
 
 PROVEDORES = {
-    "gemini": (Gemini, ["gemini-2.5-flash", "gemini-flash-lite-latest"]),
+    # Um modelo só, com versão fixa: trocar de modelo no meio misturaria dois
+    # classificadores no mesmo resultado. (O 2.5 Flash tem só 20 requisições
+    # por dia no nível gratuito.)
+    "gemini": (Gemini, ["gemini-3.5-flash-lite"]),
     "claude": (Claude, ["claude-opus-5-5"]),
 }
 
