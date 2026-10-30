@@ -1,0 +1,51 @@
+{
+  "modelo": "zero_shot_gemini-3.5-flash-lite",
+  "n_teste": 501,
+  "f1_macro": 0.6864,
+  "acuracia": 0.8443,
+  "f1_por_classe": {
+    "negativo": 0.8734,
+    "neutro": 0.2727,
+    "positivo": 0.913
+  },
+  "matriz_confusao": {
+    "classes": [
+      "negativo",
+      "neutro",
+      "positivo"
+    ],
+    "valores": [
+      [
+        138,
+        7,
+        2
+      ],
+      [
+        19,
+        12,
+        15
+      ],
+      [
+        12,
+        23,
+        273
+      ]
+    ]
+  },
+  "provedor": "gemini",
+  "modelos_que_responderam": {
+    "gemini-3.5-flash-lite": 501
+  },
+  "erros_de_chamada": 0,
+  "exemplo_erro": null,
+  "respostas_invalidas": 0,
+  "latencia_mediana_s": 1.294,
+  "latencia_p95_s": 23.227,
+  "tokens_por_1k": {
+    "entrada": 172689,
+    "saida": 11952
+  },
+  "hardware": "API",
+  "custo_usd_por_1k": 0.0,
+  "observacao_custo": "nível gratuito do Google AI Studio"
+}
